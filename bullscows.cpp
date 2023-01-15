@@ -1,11 +1,12 @@
 #include "bullscows.h"
-#include <iostream>
-#include <cstdlib>
-#include <ctime>
-#include <set>
-BullsCows::BullsCows(QObject *parent) : QObject(parent)
+
+BullsCows::BullsCows(QObject *parent) : QObject(parent), times(0)
 {
-    newNum();
+    std::ifstream fin("save");
+    int r;
+    std::string name;
+    while(fin >> r >> name)
+        reses.insert({r, name});
 }
 
 void BullsCows::newNum(){
@@ -47,20 +48,84 @@ bool check(int n) {
 }
 
 void BullsCows::updNum(QString s) {
+    if (s.size() != 4){
+        ok = false;
+        return;
+    }
+
     int val_int;
     val_int = s.toInt(&ok);
     if (ok)
          num_in_line = val_int;
 }
-void BullsCows::getResult() {
-    if (!ok) {
-        emit error("НЕ ЧИСЛО");
+
+void BullsCows::reset() {
+    if (!in_game) {
+        newNum();
+        in_game = true;
+        emit output("Число сгенерировано");
+        emit changeButText("Сдаться");
         return;
     }
-    if (!check(num_in_line)){
+    QString out = "Число: " + QString::number(m_num) + ", Потрачено ходов : " + QString::number(times);
+    text = "";
+    in_game = false;
+    emit output(text + out);
+    emit changeButText("Новая игра");
+}
+
+QString ResultOut(int bulls, int cows) {
+    QString res = QString::number(bulls);
+    if (bulls == 0)
+        res += " быков ";
+    else if (bulls == 1)
+        res += " бык   ";
+    else
+        res += " быка  ";
+    res += QString::number(cows);
+    if (cows == 0)
+        res += " коров ";
+    else if (cows == 1)
+        res += " корова";
+    else
+        res += " коровы";
+    return res;
+
+}
+void BullsCows::save() {
+    std::ofstream fout("save");
+    for (const auto & x: reses) {
+        fout << x.first << " " << x.second << "\n";
+    }
+    fout.close();
+}
+
+void BullsCows::showRes() {
+    QMessageBox msg;
+    QString str;
+    int ii = 1;
+    for (const auto & x : reses) {
+        str = str + QString::number(ii) + ": " + QString::fromStdString(x.second) + " - " + QString::number(x.first) + "\n";
+        ++ii;
+    }
+    msg.setText(str);
+    msg.exec();
+}
+
+void BullsCows::getResult() {
+    if (!in_game) {
+        return;
+    }
+    ++times;
+    emit changeButText("Сдаться");
+    if (!check(num_in_line) || !ok){
+        --times;
         emit error("Введите четырехзначное число\nс различными цифрами");
         return;
     }
+    if (num_in_line == pr_num)
+        --times;
+    pr_num = num_in_line;
     int bulls = 0;
     int cows = 0;
     if ((num_in_line / 1000) == (m_num / 1000))
@@ -82,16 +147,32 @@ void BullsCows::getResult() {
     used.insert(m_num % 10);
     cows = 8 - used.size() - bulls;
     if (bulls == 4) {
-        text += QString::number(num_in_line) + "\nВы угадали!!\n";
+        text += QString::number(num_in_line) + "\nВы угадали!! Ходов:" + QString::number(times) + "\n";
+        reses.insert({times, QInputDialog::getText(nullptr,tr("Ваше имя"), tr("Ваше имя:"), QLineEdit::Normal).toStdString()});
+        if (reses.size() > 5)
+            reses.erase(--reses.end());
+        save();
+        showRes();
         emit output(text);
+        emit error("");
+        emit changeButText("Новая игра");
+        times = 0;
+        pr_num = 0;
         text = "";
-        newNum();
+        in_game = false;
     }
     else {
-        if (text.size() > 34 * 13) {
-            text = QString::fromStdString(text.toStdString().substr(44, 1000));
+        if (sizes.size() > 15) {
+            text = text.right(text.size() - sizes.front());
+            sizes.pop();
         }
-        text += QString::number(num_in_line) + " Быков - " + QString::number(bulls) + "\n         Коров - " + QString::number(cows) + "\n";
+        QString add = QString::number(times)+ ". " + QString::number(num_in_line) + " - " + ResultOut(bulls, cows) + "\n";
+        sizes.push(add.size());
+        text += add;
         emit output(text);
+        emit error("");
     }
+}
+void BullsCows::showTable() {
+    showRes();
 }

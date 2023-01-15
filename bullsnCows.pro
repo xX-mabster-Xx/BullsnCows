@@ -10,10 +10,12 @@ CONFIG += c++11
 
 SOURCES += \
     bullscows.cpp \
-    main.cpp
+    main.cpp \
+    mypushbutton.cpp
 
 HEADERS += \
-    bullscows.h
+    bullscows.h \
+    mypushbutton.h
 
 FORMS +=
 
